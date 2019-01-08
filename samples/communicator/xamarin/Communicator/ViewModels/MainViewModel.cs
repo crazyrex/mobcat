@@ -30,7 +30,7 @@ namespace Communicator.ViewModels
         {
             Messages = new ObservableCollection<Message>();
             _hubConnection = new HubConnectionBuilder()
-              .WithUrl($"{localAddrewss}/chat")
+              .WithUrl($"{remoteAddress}/chat")
               .Build();
             _hubConnection.Closed += _hubConnection_Closed;
             _hubConnection.On<string, string>("broadcastMessage", (user, message) =>

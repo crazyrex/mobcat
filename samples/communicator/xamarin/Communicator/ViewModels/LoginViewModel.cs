@@ -7,13 +7,14 @@ namespace Communicator.ViewModels
 {
     public class LoginViewModel: BaseNavigationViewModel
     {
-        public Command LoginCommand => new Command(async () => await Navigation.PopModalAsync());
         private string _userName;
         private string _password;
 
+        public Command LoginCommand => new Command(async () => await Navigation.PopModalAsync());
+
         public LoginViewModel()
         {
-            UserName = "BenTset";
+            UserName = "BenBtg";
         }
 
         public string UserName
