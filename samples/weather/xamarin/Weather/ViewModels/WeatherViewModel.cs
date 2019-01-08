@@ -1,14 +1,13 @@
 using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.MobCAT;
 using Microsoft.MobCAT.MVVM;
 using Weather.Services.Abstractions;
-using Xamarin.Essentials;
 using System.Linq;
 using System.Threading;
 using Weather.Models;
-using Microsoft.MobCAT.Services;
+using Xamarin.Forms;
+using Xamarin.Essentials;
 
 namespace Weather.ViewModels
 {
@@ -28,6 +27,9 @@ namespace Weather.ViewModels
         IImageService imageService;
         IGeolocationService geolocationService;
         IGeocodingService geocodingService;
+        IValueCacheService valueCacheService;
+        ILocalizationService localizationService;
+
         readonly Lazy<ITimeOfDayImageService> timeOfDayImageService = new Lazy<ITimeOfDayImageService>(() =>
         {
             try
@@ -36,25 +38,45 @@ namespace Weather.ViewModels
             }
             catch (Exception ex)
             {
-                //Previewer or unregistered
+                Logger.Error(ex);
             }
             return null;
         });
 
         Timer _timer;
+        Timer _locationTimer;
 
         public WeatherViewModel()
         {
             IsCelsius = true;
 
+            if (DesignMode.IsDesignModeEnabled)
+            {
+                CityName = "London";
+                IsCelsius = true;
+                WeatherDescription = "Cloudy";
+                CurrentTemp = "17";
+                HighTemp = "20";
+                LowTemp = "10";
+                WeatherImage = $"https://upload.wikimedia.org/wikipedia/commons/8/82/London_Big_Ben_Phone_box.jpg";
+            }
+
             // Timer to update time
-            _timer = new Timer((state) => Time = DateTime.Now.ToShortTimeString(), state: null, dueTime: 100, period: 10000);
+            _timer = new Timer((state) => Time = DateTime.Now.ToShortTimeString(), state: null, dueTime: TimeSpan.FromSeconds(0.1), period: TimeSpan.FromSeconds(10));
+
+            // Timer to update location
+            _locationTimer = new Timer((state) => Task.Run(RefreshCoordinates), state: null, dueTime: TimeSpan.FromSeconds(20), period: TimeSpan.FromSeconds(20)); //update the location every 20 seconds
         }
 
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            _timer.Dispose();
+
+            _timer?.Dispose();
+            _timer = null;
+
+            _locationTimer?.Dispose();
+            _locationTimer = null;
         }
 
 
@@ -145,40 +167,34 @@ namespace Weather.ViewModels
 
         public async override Task InitAsync()
         {
-            LoadWeatherState(); //load the saved weather state first
-
             forecastsService = ServiceContainer.Resolve<IForecastsService>();
             imageService = ServiceContainer.Resolve<IImageService>();
-            geolocationService = ServiceContainer.Resolve<IGeolocationService>();
-            geocodingService = ServiceContainer.Resolve<IGeocodingService>();
+            valueCacheService = ServiceContainer.Resolve<IValueCacheService>();
+            localizationService = ServiceContainer.Resolve<ILocalizationService>();
+
+            LoadWeatherState(); //load the saved weather state first
 
             try
             {
-                // Use last known location for quicker response
-                var location = await geolocationService.GetLastKnownLocationAsync();
-                if (location == null)
+                var coordinates = await RefreshCoordinates();
+                var forecast = await forecastsService.GetForecastAsync(coordinates.Latitude, coordinates.Longitude); //Use lat and long since the city name can be different based on localization
+
+                if (forecast != null)
                 {
-                    location = await geolocationService.GetLocationAsync();
-                }
-
-                if (location != null)
-                {
-                    var place = await geocodingService.GetPlacesAsync(location);
-                    string city = place.FirstOrDefault()?.CityName;
-
-                    CityName = city;
-
-                    var forecast = await forecastsService.GetForecastAsync(city);
-
-                    if (forecast != null)
+                    var weatherDescription = forecast.Overview;
+                    if (!string.IsNullOrEmpty(weatherDescription))
                     {
-                        WeatherDescription = forecast.Overview;
-                        WeatherIcon = WeatherIcons.Lookup(WeatherDescription);
-                        CurrentTemp = forecast.CurrentTemperature;
-                        HighTemp = forecast.MaxTemperature;
-                        LowTemp = forecast.MinTemperature;
-                        WeatherImage = await imageService.GetImageAsync(city, forecast.Overview);
+                        WeatherIcon = WeatherIcons.Lookup(weatherDescription);
+                        WeatherDescription = localizationService.Translate(weatherDescription.Trim().Replace(" ", "").ToLower());
                     }
+                    else
+                    {
+                        WeatherDescription = localizationService.Translate(Constants.LanguageResourceKeys.WeatherUnknownKey);
+                    }
+                    CurrentTemp = forecast.CurrentTemperature;
+                    HighTemp = forecast.MaxTemperature;
+                    LowTemp = forecast.MinTemperature;
+                    WeatherImage = await imageService.GetImageAsync(forecast.Name, forecast.Overview);
                 }
 
                 SaveWeatherState();
@@ -187,52 +203,77 @@ namespace Weather.ViewModels
             {
                 // Handle not supported on device exception
                 CityName = "Unable to retrieve location - Feature not supported";
+                Logger.Error(fnsEx);
             }
             catch (PermissionException pEx)
             {
                 // Handle permission exception
                 CityName = "Unable to retrieve location - Need permission";
+                Logger.Error(pEx);
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
                 // Unable to get location
+                Logger.Error(ex);
             }
             finally
             {
                 //Use cached weather image as fallback if necessary
                 if (string.IsNullOrEmpty(WeatherImage))
                 {
-                    WeatherImage = Preferences.Get(Constants.CacheKeys.WeatherImageKey, default(string));
+                    WeatherImage = valueCacheService.Load(Constants.CacheKeys.WeatherImageKey, default(string));
                 }
             }
         }
 
+        private async Task<Coordinates> RefreshCoordinates()
+        {
+            Coordinates coordinates = null;
+            try
+            {
+                geolocationService = geolocationService ?? ServiceContainer.Resolve<IGeolocationService>();
+                geocodingService = geocodingService ?? ServiceContainer.Resolve<IGeocodingService>();
+
+                coordinates = await geolocationService.GetLocationAsync();
+
+                if (coordinates != null) //Update the city name
+                {
+                    var places = await geocodingService.GetPlacesAsync(coordinates);
+                    CityName = places.FirstOrDefault()?.CityName;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex);
+            }
+            return coordinates;
+        }
+
         private void SaveWeatherState()
         {
-            Preferences.Set(Constants.CacheKeys.CacheSavedDateTimeKey, DateTime.Now);
-            Preferences.Set(Constants.CacheKeys.CityNameKey, CityName);
-            Preferences.Set(Constants.CacheKeys.CurrentTempKey, CurrentTemp);
-            Preferences.Set(Constants.CacheKeys.HighTempKey, HighTemp);
-            Preferences.Set(Constants.CacheKeys.LowTempKey, LowTemp);
-            Preferences.Set(Constants.CacheKeys.WeatherDescriptionKey, WeatherDescription);
-            Preferences.Set(Constants.CacheKeys.WeatherImageKey, WeatherImage);
-            Preferences.Set(Constants.CacheKeys.WeatherIconKey, WeatherIcon);
-            Preferences.Set(Constants.CacheKeys.IsCelsiusKey, IsCelsius);
+            valueCacheService.Save(Constants.CacheKeys.CacheSavedDateTimeKey, DateTime.Now);
+            valueCacheService.Save(Constants.CacheKeys.CityNameKey, CityName);
+            valueCacheService.Save(Constants.CacheKeys.CurrentTempKey, CurrentTemp);
+            valueCacheService.Save(Constants.CacheKeys.HighTempKey, HighTemp);
+            valueCacheService.Save(Constants.CacheKeys.LowTempKey, LowTemp);
+            valueCacheService.Save(Constants.CacheKeys.WeatherDescriptionKey, WeatherDescription);
+            valueCacheService.Save(Constants.CacheKeys.WeatherImageKey, WeatherImage);
+            valueCacheService.Save(Constants.CacheKeys.WeatherIconKey, WeatherIcon);
+            valueCacheService.Save(Constants.CacheKeys.IsCelsiusKey, IsCelsius);
         }
 
         private void LoadWeatherState()
         {
-            var cacheSavedDateTime = Preferences.Get(Constants.CacheKeys.CacheSavedDateTimeKey, default(DateTime));
+            var cacheSavedDateTime = valueCacheService.Load(Constants.CacheKeys.CacheSavedDateTimeKey, default(DateTime));
             if ((DateTime.Now - cacheSavedDateTime).TotalDays < 1) //Only load if it's been less than a day
             {
-                CityName = Preferences.Get(Constants.CacheKeys.CityNameKey, default(string));
-                CurrentTemp = Preferences.Get(Constants.CacheKeys.CurrentTempKey, default(string));
-                HighTemp = Preferences.Get(Constants.CacheKeys.HighTempKey, default(string));
-                LowTemp = Preferences.Get(Constants.CacheKeys.LowTempKey, default(string));
-                WeatherDescription = Preferences.Get(Constants.CacheKeys.WeatherDescriptionKey, default(string));
-                WeatherIcon = Preferences.Get(Constants.CacheKeys.WeatherIconKey, default(string));
-                IsCelsius = Preferences.Get(Constants.CacheKeys.IsCelsiusKey, default(bool));
+                CityName = valueCacheService.Load(Constants.CacheKeys.CityNameKey, default(string));
+                CurrentTemp = valueCacheService.Load(Constants.CacheKeys.CurrentTempKey, default(string));
+                HighTemp = valueCacheService.Load(Constants.CacheKeys.HighTempKey, default(string));
+                LowTemp = valueCacheService.Load(Constants.CacheKeys.LowTempKey, default(string));
+                WeatherDescription = valueCacheService.Load(Constants.CacheKeys.WeatherDescriptionKey, default(string));
+                WeatherIcon = valueCacheService.Load(Constants.CacheKeys.WeatherIconKey, default(string));
+                IsCelsius = valueCacheService.Load(Constants.CacheKeys.IsCelsiusKey, default(bool));
             }
         }
     }

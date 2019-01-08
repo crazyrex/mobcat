@@ -1,12 +1,12 @@
 ﻿using System;
+using System.Globalization;
 using System.Reflection;
 using Microsoft.MobCAT;
 using Microsoft.MobCAT.Forms.Services;
 using Microsoft.MobCAT.MVVM.Abstractions;
-using Weather.Models;
+using Weather.Localization;
 using Weather.Services;
 using Weather.Services.Abstractions;
-using Xamarin.Essentials;
 
 namespace Weather
 {
@@ -24,6 +24,12 @@ namespace Weather
             ServiceContainer.Register<IGeolocationService>(() => new GeolocationService());
             ServiceContainer.Register<IGeocodingService>(() => new GeocodingService());
             ServiceContainer.Register<ITimeOfDayImageService>(() => new TimeOfDayImageService());
+            ServiceContainer.Register<IValueCacheService>(() => new ValueCacheService());
+
+            //Log to AppCenter for release
+#if RELEASE
+            Logger.RegisterService(new AppCenterLoggingService());
+#endif
 
             platformSpecificBegin?.Invoke();
         }

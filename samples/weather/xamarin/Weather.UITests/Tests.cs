@@ -1,40 +1,35 @@
 ﻿using System;
-using System.IO;
-using System.Linq;
+using System.Threading;
 using NUnit.Framework;
+using Weather.UITests.Pages;
 using Xamarin.UITest;
-using Xamarin.UITest.Queries;
 
 namespace Weather.UITests
 {
-    [TestFixture(Platform.Android)]
-    [TestFixture(Platform.iOS)]
-    public class Tests
+    public class Tests : BaseTestFixture
     {
-        IApp app;
-        Platform platform;
-
-        public Tests(Platform platform)
+        public Tests(Platform platform) : base(platform)
         {
-            this.platform = platform;
-        }
-
-        [SetUp]
-        public void BeforeEachTest()
-        {
-            app = AppInitializer.StartApp(platform);
         }
 
         [Test]
-        public void AppLaunches()
+        public void SetLocationRedmond()
         {
-            app.Screenshot("First screen.");
+            //Set location before testing the page
+            app.Device.SetLocation(latitude: 47.6739, longitude: -122.1215);
+            Thread.Sleep(TimeSpan.FromMinutes(1)); //Wait for location to be set on the phone
+            new MainPage().SetLocationToRedmond();
         }
 
         [Test]
-        public void SetLocation()
+        public void Repl()
         {
-            //app.Device.SetLocation() //TODO: This test
+            if (TestEnvironment.IsTestCloud)
+            {
+                Assert.Ignore("Local only");
+            }
+
+            app.Repl();
         }
     }
 }

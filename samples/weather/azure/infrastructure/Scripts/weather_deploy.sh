@@ -4,33 +4,17 @@ echo ""
 echo "========== WeatherSample Provisioning started =========="
 echo ""
 
-targetTenant=""
-targetSubscription=""
-adminUpnOrObjectId=""
-openWeatherMapAppId=""
-apiKey=""
-
 # Resolve parameters
-while [ "$1" != "" ]; do
-
+for i in "$@"; do
     case $1 in
-        -t | --tenant )
-            shift
-            targetTenant=$1 ;;
-        -s | --subscription )
-            shift
-            targetSubscription=$1 ;;
-        -a | --admin )
-            shift
-            adminUpnOrObjectId=$1 ;;
-        -k | --api-key )
-            shift
-            apiKey=$1 ;;
-        -i | --openweathermap-appid )
-            shift
-            openWeatherMapAppId=$1 ;;
-        * )
-            exit
+        "" ) break ;;
+        -t | --tenant  ) targetTenant="$2"; shift ;;
+        -s | --subscription ) targetSubscription="$2"; shift ;;
+        -a | --admin ) adminUpnOrObjectId="$2"; shift ;;
+        -k | --api-key ) apiKey="$2"; shift ;;
+        -i | --openweathermap-appid ) openWeatherMapAppId="$2"; shift ;;
+        -* | --*) echo "Unknown option: '$1'"; exit 1 ;;
+        * ) echo "Unknown argument: '$1'"; exit 1 ;;
     esac
     shift
 done
@@ -317,24 +301,23 @@ az keyvault secret set \
 
 echo "Publishing API App"
 
-cd ..
-cd ..
-cd service
-cd WeatherService
+cd ../../service/WeatherService
 
-echo "Publishing API App: Creating self-contained application"
-dotnet publish -c release -r win-x86 --self-contained 1> /dev/null
+echo "Publishing API App: Creating application"
+dotnet publish -c release 1> /dev/null
+
+cd bin/Release/netcoreapp2.1/publish
 
 echo "Publishing API App: Packaging application files"
-zip -r bin/Release/netcoreapp2.1/win-x86/weather_deploy.zip \
-    bin/Release/netcoreapp2.1/win-x86/publish \
-    1> /dev/null
+zip -r ../publish.zip * 1> /dev/null
+
+cd ..
 
 echo "Publishing API App: Deploying application package"
 az webapp deployment source config-zip \
     --resource-group $resourceGroupName \
     --name $apiAppName \
-    --src bin/Release/netcoreapp2.1/win-x86/weather_deploy.zip \
+    --src publish.zip \
     1> /dev/null
 
 echo ""

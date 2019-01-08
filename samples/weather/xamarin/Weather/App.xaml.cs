@@ -1,6 +1,8 @@
-﻿using Microsoft.AppCenter;
+﻿using System;
+using Microsoft.AppCenter;
 using Microsoft.AppCenter.Analytics;
 using Microsoft.AppCenter.Crashes;
+using Microsoft.MobCAT;
 using Weather.ViewModels;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
@@ -18,10 +20,17 @@ namespace Weather
 
         protected override void OnStart()
         {
-            // Handle when your app starts
-            AppCenter.Start($"{ServiceConfig.AndroidAppCenterSecret};" +
-                  $"{ServiceConfig.iOSAppCenterSecret}",
-                  typeof(Analytics), typeof(Crashes));
+            try
+            {
+                // Handle when your app starts
+                AppCenter.Start($"{ServiceConfig.AndroidAppCenterSecret};" +
+                      $"{ServiceConfig.iOSAppCenterSecret}",
+                      typeof(Analytics), typeof(Crashes));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex);
+            }
         }
 
         protected override void OnSleep()

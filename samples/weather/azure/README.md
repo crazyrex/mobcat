@@ -23,7 +23,7 @@ The following dependencies are required in order to follow the steps outlined be
 
 You can sign up for a [free trial](https://azure.microsoft.com/free/) of Azure in order to further explore the concepts in this sample if you do not have a subscription available for these purposes.  
 
-**NOTE:** You must have permission to create **Resource Groups** on the **Azure Subscription** in order to complete the steps below.
+You must have permission to create **Resource Groups** on the **Azure Subscription** in order to complete the steps below.
 
 ## Provisioning the service
 Follow the steps below to provision the **WeatherService**, and the underlying resources, to your [Azure Subscription](https://portal.azure.com). In the interest of brevity, the term '*CMD*' applies to both the Windows **Command Prompt** and the macOS **Terminal**.  
@@ -43,12 +43,24 @@ Follow the steps below to provision the **WeatherService**, and the underlying r
     ```
     az --version
     ```
+    
+    In order to install or update the **Azure CLI** follow this [complete guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) or use the following instructions:
+
+    **macOS:** 
+    ```
+    brew update
+    brew install azure-cli
+    brew upgrade azure-cli
+    ```
+    **Windows:** [MSI installer](https://aka.ms/installazurecliwindows)
 
 3. Validate you have **.NET Core SDK** version *2.1* or higher
 
     ```
     dotnet --version
     ```
+
+    In order to install or update the SDK download the [.NET Core SDK Installer](https://dotnet.microsoft.com/download)
 
 ### Executing the provisioning script
 1. Open the **CMD** (if you do not have it open from the previous steps)
@@ -80,7 +92,7 @@ Follow the steps below to provision the **WeatherService**, and the underlying r
     - subscription_id
     - tenant_id
     - account_name
-7. Choose (or generate) an API key for **WeatherService**. There are a number of [guid generator](https://www.bing.com/search?q=guid+generator) tools available online which might help with this, however a passphrase would suffice for the purposes of this sample
+7. Choose (or generate) an API key for **WeatherService**. This API key will be used to prevent the **WeatherService** unauthorized access. Use it as the **your_api_key** parameter later. There are a number of [guid generator](https://www.bing.com/search?q=guid+generator) tools available online which might help with this, however a passphrase would suffice for the purposes of this sample
 8. From **CMD**, call the respective **weather_deploy** script passing in the requisite parameters. For example:
 
     **macOS:**
@@ -93,7 +105,7 @@ Follow the steps below to provision the **WeatherService**, and the underlying r
     weather_deploy.bat --tenant <tenant_id> --subscription <subscription_id> --admin <account_name> --openweathermap-appid <openweathermap_key> --api-key <your_api_key>
     ```
 
-**NOTE:** The script may take upwards of 25 minutes to complete when executed for the first time. Templated deployments are incremental and subsequent executions will take significantly less time to execute.  
+**NOTE:** The script may take upwards of 25 minutes to complete when executed for the first time. Templated deployments are incremental and subsequent executions will take significantly less time to complete.  
 
 ### Reviewing the deployment
 1. Navigate to the [Azure Portal](https://portal.azure.com)
@@ -127,7 +139,15 @@ dotnet dev-certs https --trust
 ```
 
 #### Working with KeyVault locally using MSI (Managed Service Identity)
-When running the service locally you should ensure you are signed into Azure (via the [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)) using the account that was used execute the script or one that has been subsequently given the same or greater [KeyVault](https://azure.microsoft.com/en-gb/services/key-vault/) permissions via **Access Policy**. Alternatively, you can use the [Azure Services Authentication](https://marketplace.visualstudio.com/items?itemName=chrismann.MicrosoftVisualStudioAsalExtension) extension for [Visual Studio 2017](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Enterprise&rel=15). Once installed, you can go to *Tools > Options > Azure Service Authentication* to choose an account and sign in. 
+When running the service locally you should ensure you are signed into Azure (via the [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)) using the account that was used execute the script or one that has been subsequently given the same or greater [KeyVault](https://azure.microsoft.com/en-gb/services/key-vault/) permissions via **Access Policy**. Alternatively, you can use the [Azure Services Authentication](https://marketplace.visualstudio.com/items?itemName=chrismann.MicrosoftVisualStudioAsalExtension) extension for [Visual Studio 2017](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=Enterprise&rel=15). Once installed, you can go to *Tools > Options > Azure Service Authentication* to choose an account and sign in.  
+
+You will also need to create a file called **localsettings.json** within the **WeatherService** folder (at the same level as the **WeatherService.csproj** file). This must contain the endpoint for your [KeyVault](https://azure.microsoft.com/en-gb/services/key-vault/) resource. For example:
+
+```
+{
+  "KEYVAULT_ENDPOINT": "https://<keyvault_name>.vault.azure.net"
+}
+```
 
 If you are unable to work with [KeyVault](https://azure.microsoft.com/en-gb/services/key-vault/) directly in this way (or choose to skip this at any time), you can update **appsettings.Development.json** setting the **USE_KEYVAULT** flag to **false**. You can also edit the application settings that would be picked up at runtime when hosted on [App Service](https://docs.microsoft.com/en-us/azure/app-service/app-service-web-overview). For example: 
 
@@ -162,6 +182,9 @@ In the event that you choose to set **USE_KEYVAULT** to false, you will need to 
 ```
 
 **NOTE:** This has already been added to the **gitignore** file.
+
+#### Azure costs
+There is a monthly cost associated with the Azure resources that are provisioned as part of this sample. This is primarily associated with the [App Service](https://docs.microsoft.com/en-us/azure/app-service/app-service-web-overview) and the [Redis Cache](https://azure.microsoft.com/en-gb/services/cache/) to a lesser degree. The total cost could be reduced by moving to a [lower tier](https://azure.microsoft.com/en-gb/pricing/details/app-service/plans/) (Basic or Free) and updating the service to use [in-memory cache](https://docs.microsoft.com/en-us/aspnet/core/performance/caching/memory?view=aspnetcore-2.1) instead of the [Redis Cache](https://azure.microsoft.com/en-gb/services/cache/). 
 
 ### Deploying the service
 The script has been provided for convenience as this is not the focus of this sample. However, there are a number of ways to deploy to **App Service**. These include:
