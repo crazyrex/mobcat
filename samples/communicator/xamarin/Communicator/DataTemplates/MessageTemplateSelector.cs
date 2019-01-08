@@ -1,4 +1,5 @@
 ﻿using Xamarin.Forms;
+using Communicator.Models;
 
 namespace Communicator.DataTemplates
 {

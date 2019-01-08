@@ -5,6 +5,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Xamarin.Essentials;
+using Communicator.Models;
 
 namespace Communicator.ViewModels
 {

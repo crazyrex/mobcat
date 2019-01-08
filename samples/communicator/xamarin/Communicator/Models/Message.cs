@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Communicator
+namespace Communicator.Models
 {
     public class Message
     {
